@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+   <meta charset="UTF-8">
+  <title>근로시간 달력 만들기</title>
+
+  <style>
+
+    #calendarWrapper {
+   width: 110%;  
+   max-width: 1100px; 
+   margin: 0 auto; 
+   transform-origin: top left; /* 크기 변환 기준 */
+   }
+
+
+    #calendar {
+      display:grid;
+      grid-template-columns: repeat(7,130px);
+      gap: 2px;
+      max-width: 1000px;
+      margin: 20px auto;
+      text-align: center;
+    }
+
+    .day{
+      width: 100%;
+      aspect-ratio: 6/5;
+      max-width: 100px;
+      min-width: 80px;
+        width: 100px;
+        height: 70px;
+        border: 1px solid #ccc;
+        padding: 10px;
+        font-size: 14px;
+    }
+
+    .header{
+      width: 120px;
+      height: 30px;
+      font-weight: bold;
+      font-size: 18px;
+      background-color: rgb(219,210,209);
+      color: rgb(129,120,119);
+      line-height: 25px;
+    }
+    .title-bar{
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 0 10px;
+    }
+    .title{
+      font-size: 45px;
+      margin-top: 30px;
+      margin-bottom: 30px;
+      margin-left: 20px;
+      color:rgb(223,200,208);
+      
+    }
+
+    #monthDisplay{
+      font-size: 55px;
+      font-weight: bold;
+      color:rgb(213,180,188);
+      margin-right: 160px;
+    }
+
+    #totalHoursDisplay {
+     position: fixed;
+     bottom: 700px;
+     right: 500px;
+     background-color: white;
+     border: 1px solid #ccc;
+     padding: 6px 12px;
+     border-radius: 12px;
+     font-size: 30px;
+     font-weight: bold;
+     color: rgb(89,80,99);
+     box-shadow: 2px 2px 6px rgb(169,160,179); 
+     z-index: 1000; 
+    }
+
+    footer {
+      margin-top: 30px;
+      font-size: 12px;
+      text-align: center;
+      color: gray;
+    }
+
+    #loginPopup {
+    display: none;
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #fff;
+    border: 2px solid #333;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-weight: bold;
+    box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+    z-index: 10000;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="title-bar">
+  <h1 class="title">달력 연습 중!</h1>
+  <div id="monthDisplay"></div>
+</div>
+
+<div id="passwordWrapper" style="text-align: right; margin: 20px 300px 100px auto; max-width: 350px;">
+  🔐 전용 달력을 열려면 →  
+  <input type="password" id="userKeyInput" placeholder="비밀번호 4자리" maxlength="4" style="width: 140px;"/>
+  <button onclick="setUserKey()">🔓 열기</button>
+</div>
+
+
+<div id="calendarWrapper" style="width: 120%; max-width: 1100px; margin: 0 auto;">
+  <div id="calendar"></div>
+</div>
+
+<div id="selectedDate" style="text-align: center; font-weight: bold;"></div>
+
+<div style="text-align: center; margin: 10px;">
+  출근
+  <select id="startHour"></select>시 ~
+  <select id="startMin"></select>분
+</div>
+
+<div style="text-align: center; margin: 10px;">
+  퇴근
+  <select id="endHour"></select>시 ~
+  <select id="endMin"></select>분
+</div>
+
+
+
+<button id="writeBtn" style="display: block; margin: 5px auto;">✍️ 쓰기</button>
+<div id="totalHoursDisplay"></div>
+
+<div style="text-align: center; margin: 10px;">
+  <button id="prevBtn">← 이전 달</button>
+  <button id="nextBtn">다음 달 →</button>
+</div>
+
+  <footer>
+    made with ❤️ by Yujin & ChatGPT
+  </footer>
+
+  <div id="loginPopup" style="display:none; position:fixed; top:20px; right:20px; 
+  background:#fff; border:2px solid #333; padding:10px 20px; border-radius:10px; 
+  font-weight:bold; box-shadow: 2px 2px 8px rgba(0,0,0,0.3); z-index:10000;">
+  🐱 먀옹! 🦦 꾸꾸! 로그인 성공!
+  </div>
+
+
+  <script>
+
+  function formatDecimalHoursToTime(decimalHours) {
+    const hours = Math.floor(decimalHours);
+    const minutes = Math.round((decimalHours - hours) * 60);
+    return `${hours}시간 ${minutes}분`;
+  }
+
+     function updateTotalHours(){
+    totalHoursDisplay.textContent = `총 ${formatDecimalHoursToTime(totalHours)}`;
+  }
+
+   
+    const calendar = document.getElementById("calendar");
+    const selectedDate = document.getElementById("selectedDate");
+    const startHourSelect = document.getElementById("startHour");
+    const startMinSelect = document.getElementById("startMin");
+    const endHourSelect = document.getElementById("endHour");
+    const endMinSelect = document.getElementById("endMin");
+    const writeBtn = document.getElementById("writeBtn");
+    const totalHoursDisplay = document.getElementById("totalHoursDisplay");
+    const monthDisplay = document.getElementById("monthDisplay");
+
+   const today = new Date();
+   let currentYear = today.getFullYear();
+   let currentMonth = today.getMonth();
+    let selectedDay = null;
+    let selectedCell = null;
+    let workLog = {};
+    let totalHours = 0;
+
+    let userKey = "0000"
+
+   function setUserKey(){
+    const input = document.getElementById("userKeyInput").value.trim();
+     if (/^\d{4}$/.test(input)) {
+      userKey = input;
+      generateCalendar(); 
+      showLoginPopup();
+    } else {
+      alert("숫자 4자리 비밀번호를 입력해주세요!");
+    }
+  }
+
+  document.getElementById("userKeyInput").addEventListener("keydown", function(event) {
+  if (event.key === "Enter") {
+    setUserKey();
+    }
+   });
+
+   function showLoginPopup() {
+    const popup = document.getElementById("loginPopup");
+    popup.style.display = "block";
+    setTimeout(() => {
+      popup.style.display = "none";
+    }, 2000); // 2초 후 자동 숨김
+  }
+
+
+
+
+
+
+   function generateHourOptions(selectEl, startHour = 7, endHour = 22) {
+    for (let hour = startHour; hour <= endHour; hour++) {
+    const option = document.createElement("option");
+    const hh = hour.toString().padStart(2, '0');
+    option.value = hh;
+    option.textContent = hh;
+    selectEl.appendChild(option);
+     }
+  }  
+   function generateMinuteOptions(selectEl) {
+     for (let min = 0; min < 60; min++) {
+      const option = document.createElement("option");
+      const mm = min.toString().padStart(2, '0');
+      option.value = mm;
+      option.textContent = mm;
+      selectEl.appendChild(option);
+     }
+  }
+
+
+   generateHourOptions(startHourSelect, 7, 22);  // 출근시간 7시~22시 선택 가능
+   generateHourOptions(endHourSelect, 12, 22);   // 퇴근시간 12시~22시만 선택 가능
+   generateMinuteOptions(startMinSelect);
+   generateMinuteOptions(endMinSelect);
+
+
+
+    function saveWorkLog() {
+      const data = {
+        year: currentYear,
+        month: currentMonth,
+        workLog,
+        totalHours
+      };
+       localStorage.setItem(`workLogData_${userKey}_${currentYear}_${currentMonth}`, JSON.stringify(data));
+    }
+
+    function loadWorkLog() {
+       const saved = localStorage.getItem(`workLogData_${userKey}_${currentYear}_${currentMonth}`);
+      if (saved) {
+        const data = JSON.parse(saved);
+        workLog = data.workLog || {};
+        totalHours = data.totalHours || 0;
+        } else {
+          workLog = {};
+          totalHours = 0;
+        }
+      }
+
+    function renderCalendar(year, month) {
+       calendar.innerHTML = "";
+       selectedDay = null;
+       selectedCell = null;
+
+       loadWorkLog();
+   
+   
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const startDay = new Date(year, month, 1).getDay();
+        monthDisplay.textContent = `${month + 1}월`;
+
+
+        for (let d = 1; d <= daysInMonth; d++) {
+         const dow = (startDay + d - 1) % 7;
+        if (dow >= 1 && dow <= 5 && !workLog[d]) {
+          workLog[d] = {
+            start: "10:00",
+              end: "19:00",
+              hours: 8
+              };
+             }
+           }
+        
+           saveWorkLog();
+
+
+
+
+        totalHours = 0;
+         for (const day in workLog) {
+           const data = workLog[day];
+            if (data && data.hours) {
+              totalHours += data.hours;
+          }
+        }
+          updateTotalHours();
+
+
+        const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        for(let day of weekDays){
+          const header = document.createElement("div");
+          header.className = "day header";
+          header.textContent = day;
+          calendar.appendChild(header);
+        }
+
+
+    for(let i = 0; i<startDay; i++) {
+      const empty = document.createElement("div");
+      empty.className = "day";
+      calendar.appendChild(empty);
+    }
+
+
+for(let d = 1; d<=daysInMonth; d++){
+  const cell = document.createElement("div");
+  cell.className = "day";
+  cell.textContent = d;
+  const dow = (startDay + d - 1) % 7;
+  const saved = workLog[d];
+  
+  if (saved) {
+    cell.innerHTML = 
+    "<div><strong>" + d + "</strong></div>" +
+    "<div>" + saved.start + "~" + saved.end + "</div>" +
+    "<div>(" + saved.hours.toFixed(2) + "h)</div>";
+  } else {
+    cell.textContent = d;
+  }
+
+  if (dow === 0 || dow === 6) {
+    cell.style.color = dow === 0 ? "red" : "blue";
+    cell.style.backgroundColor = "#f2f2f2";
+    cell.style.cursor = "not-allowed";
+  } else {
+    cell.addEventListener("click", () => {
+      selectedCell = cell;
+      selectedDay = d;
+      selectedDate.textContent = `${month + 1}월 ${d}일 선택됨`;
+
+      const data = workLog[d];
+      if (data) {
+        const [sh, sm] = data.start.split(":");
+        const [eh, em] = data.end.split(":");
+        startHourSelect.value = sh;
+        startMinSelect.value = sm;
+        endHourSelect.value = eh;
+        endMinSelect.value = em;
+      }
+    });
+  }
+
+  
+
+  calendar.appendChild(cell); //
+}
+}
+
+    writeBtn.addEventListener("click", () => {
+        if (!selectedCell || !selectedDay) return;
+
+            const start = `${startHourSelect.value}:${startMinSelect.value}`;
+            const end = `${endHourSelect.value}:${endMinSelect.value}`;
+            const startFloat = parseInt(startHourSelect.value) + parseInt(startMinSelect.value) / 60;
+            const endFloat = parseInt(endHourSelect.value) + parseInt(endMinSelect.value) / 60;
+
+
+            let lunchBreak = 0;
+            if (startFloat < 13 && endFloat > 12){
+              lunchBreak = 1;
+            }
+
+            const workHour = endFloat - startFloat - lunchBreak;
+
+
+
+      if (workLog[selectedDay]) {
+        totalHours -= workLog[selectedDay].hours;
+      }
+
+      workLog[selectedDay] = {
+        start,
+        end,
+        hours: workHour
+      };
+
+      totalHours += workHour;
+      selectedCell.innerHTML = `${selectedDay}<br>${start}~${end}<br>(${workHour.toFixed(2)}h)`;
+      updateTotalHours();
+      saveWorkLog();
+    });
+
+     document.getElementById("prevBtn").addEventListener("click", () => {
+      currentMonth--;
+      if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      }
+      generateCalendar();
+    });
+
+    document.getElementById("nextBtn").addEventListener("click", () => {
+      currentMonth++;
+      if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      }
+      generateCalendar();
+    });
+    
+   function generateCalendar(){
+    loadWorkLog();
+    renderCalendar(currentYear, currentMonth); 
+   updateTotalHours(); 
+   }
+ 
+   generateCalendar();
+
+</script>
+</body>
+</html>
