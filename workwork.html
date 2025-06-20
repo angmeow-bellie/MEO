@@ -105,12 +105,13 @@
     z-index: 10000;
     }
     
-    @media (max-width: 768px) {
-  .title-bar {
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
+  @media screen and (max-device-width: 768px) {
+  #totalHoursDisplay {
+    right: 5px;
+    bottom: 60px;
+    font-size: 20px;
   }
+}
 
   .title {
     font-size: 28px;
